@@ -236,10 +236,10 @@ mod test {
     #[case("test = // demo\n123", false)]
     #[case(
         r"
-                    a = 123 &&
-                    // demo
-                    b = 456
-                ",
+            a = 123 &&
+            // demo
+            b = 456
+        ",
         false
     )]
     #[case(r"1=12", false)]
