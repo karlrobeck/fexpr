@@ -1,48 +1,166 @@
-type JoinOp = &'static str;
-type SignOp = &'static str;
-type TokenType = &'static str;
-
 const EOF: char = '\0';
 
-const JoinAnd: JoinOp = "&&";
-const JoinOr: JoinOp = "||";
+#[derive(Debug, PartialEq)]
+pub enum JoinOp {
+    And,
+    Or,
+}
 
-const SignEq: SignOp = "=";
-const SignNeq: SignOp = "!=";
-const SignLike: SignOp = "~";
-const SignNlike: SignOp = "!~";
-const SignLt: SignOp = "<";
-const SignLte: SignOp = "<=";
-const SignGt: SignOp = ">";
-const SignGte: SignOp = ">=";
+impl JoinOp {
+    pub fn from_str(str: &str) -> Option<Self> {
+        match str {
+            "&&" => Some(Self::And),
+            "||" => Some(Self::Or),
+            _ => None,
+        }
+    }
 
-// array/any operators
-const SignAnyEq: SignOp = "?=";
-const SignAnyNeq: SignOp = "?!=";
-const SignAnyLike: SignOp = "?~";
-const SignAnyNlike: SignOp = "?!~";
-const SignAnyLt: SignOp = "?<";
-const SignAnyLte: SignOp = "?<=";
-const SignAnyGt: SignOp = "?>";
-const SignAnyGte: SignOp = "?>=";
+    fn as_str(&self) -> &str {
+        match self {
+            Self::And => "&&",
+            Self::Or => "||",
+        }
+    }
+}
 
-const TokenUnexpected: TokenType = "unexpected";
-const TokenEOF: TokenType = "eof";
-const TokenWS: TokenType = "whitespace";
-const TokenJoin: TokenType = "join";
-const TokenSign: TokenType = "sign";
-const TokenIdentifier: TokenType = "identifier";
-const TokenFunction: TokenType = "function";
-const TokenNumber: TokenType = "number";
-const TokenText: TokenType = "text";
-const TokenGroup: TokenType = "group";
-const TokenComment: TokenType = "comment";
+impl std::fmt::Display for JoinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
 
-#[derive(Debug)]
-pub struct Token {
-    pub meta: Option<Box<dyn std::any::Any>>,
-    pub r#type: TokenType,
-    pub literal: String,
+#[derive(Debug, PartialEq, Default)]
+pub enum SignOp {
+    #[default]
+    None,
+    Eq,
+    Neq,
+    Like,
+    Nlike,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
+    AnyEq,
+    AnyNeq,
+    AnyLike,
+    AnyNlike,
+    AnyLt,
+    AnyLte,
+    AnyGt,
+    AnyGte,
+}
+
+impl SignOp {
+    pub fn from_str(str: &str) -> Option<Self> {
+        match str {
+            "=" => Some(Self::Eq),
+            "!=" => Some(Self::Neq),
+            "~" => Some(Self::Like),
+            "!~" => Some(Self::Nlike),
+            "<" => Some(Self::Lt),
+            "<=" => Some(Self::Lte),
+            ">" => Some(Self::Gt),
+            ">=" => Some(Self::Gte),
+            "?=" => Some(Self::AnyEq),
+            "?!=" => Some(Self::AnyNeq),
+            "?~" => Some(Self::AnyLike),
+            "?!~" => Some(Self::AnyNlike),
+            "?<" => Some(Self::AnyLt),
+            "?<=" => Some(Self::AnyLte),
+            "?>" => Some(Self::AnyGt),
+            "?>=" => Some(Self::AnyGte),
+            _ => None,
+        }
+    }
+
+    fn as_str(&self) -> &str {
+        match self {
+            Self::None => "",
+            Self::Eq => "=",
+            Self::Neq => "!=",
+            Self::Like => "~",
+            Self::Nlike => "!~",
+            Self::Lt => "<",
+            Self::Lte => "<=",
+            Self::Gt => ">",
+            Self::Gte => ">=",
+            Self::AnyEq => "?=",
+            Self::AnyNeq => "?!=",
+            Self::AnyLike => "?~",
+            Self::AnyNlike => "?!~",
+            Self::AnyLt => "?<",
+            Self::AnyLte => "?<=",
+            Self::AnyGt => "?>",
+            Self::AnyGte => "?>=",
+        }
+    }
+}
+
+impl std::fmt::Display for SignOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+#[derive(Debug, PartialEq, Default, Clone)]
+pub enum Token {
+    // token kind constants
+    #[default]
+    None,
+    EOF(String),
+    Whitespace(String),
+    Join(String),
+    Sign(String),
+    Identifier(String),
+    Number(String),
+    Text(String),
+    Group(String),
+    Comment(String),
+    Function {
+        name: String,
+        args: Vec<Token>,
+    },
+}
+
+impl Token {
+    pub fn kind(&self) -> &str {
+        match self {
+            Self::None => "",
+            Self::EOF(_) => "eof",
+            Self::Whitespace(_) => "whitespace",
+            Self::Join(_) => "join",
+            Self::Sign(_) => "sign",
+            Self::Identifier(_) => "identifier", // variable, column name, placeholder, etc.
+            Self::Number(_) => "number",
+            Self::Text(_) => "text",   // ' or " quoted string
+            Self::Group(_) => "group", // groupped/nested tokens
+            Self::Comment(_) => "comment",
+            Self::Function { .. } => "function",
+        }
+    }
+
+    pub fn literal(&self) -> &str {
+        match self {
+            Self::None => "",
+            Self::EOF(value) => value,
+            Self::Whitespace(value) => value,
+            Self::Join(value) => value,
+            Self::Sign(value) => value,
+            Self::Identifier(value) => value,
+            Self::Number(value) => value,
+            Self::Text(value) => value,
+            Self::Group(value) => value,
+            Self::Comment(value) => value,
+            Self::Function { name, .. } => name,
+        }
+    }
+}
+
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{{} {}}}", self.kind(), self.literal())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -82,11 +200,7 @@ impl Scanner {
         let character = self.read();
 
         if character == EOF {
-            return Ok(Token {
-                r#type: TokenEOF,
-                literal: "".into(),
-                meta: None,
-            });
+            return Ok(Token::EOF(character.to_string()));
         }
 
         if is_whitespace_rune(character) {
@@ -153,11 +267,7 @@ impl Scanner {
             buffer.push(character);
         }
 
-        return Ok(Token {
-            r#type: TokenWS,
-            literal: buffer.into_iter().collect(),
-            meta: None,
-        });
+        return Ok(Token::Whitespace(buffer.into_iter().collect()));
     }
 
     fn scan_number(&mut self) -> Result<Token, anyhow::Error> {
@@ -199,11 +309,7 @@ impl Scanner {
             return Err(anyhow::anyhow!("invalid number {:?}", literal));
         }
 
-        return Ok(Token {
-            meta: None,
-            r#type: TokenNumber,
-            literal,
-        });
+        return Ok(Token::Number(literal));
     }
 
     fn scan_text(&mut self, preserve_quotes: bool) -> Result<Token, anyhow::Error> {
@@ -256,11 +362,7 @@ impl Scanner {
             );
         }
 
-        return Ok(Token {
-            r#type: TokenText,
-            literal,
-            meta: None,
-        });
+        return Ok(Token::Text(literal));
     }
 
     fn scan_comment(&mut self) -> Result<Token, anyhow::Error> {
@@ -285,11 +387,7 @@ impl Scanner {
 
         let literal: String = buffer.into_iter().collect();
 
-        return Ok(Token {
-            r#type: TokenComment,
-            literal: literal.trim().to_string(),
-            meta: None,
-        });
+        return Ok(Token::Comment(literal));
     }
 
     fn scan_identifier(&mut self, func_depth: i16) -> Result<Token, anyhow::Error> {
@@ -346,11 +444,7 @@ impl Scanner {
             return Err(anyhow::anyhow!("invalid identifier {:?}", literal));
         }
 
-        return Ok(Token {
-            r#type: TokenIdentifier,
-            literal,
-            meta: None,
-        });
+        return Ok(Token::Identifier(literal));
     }
 
     fn scan_sign(&mut self) -> Result<Token, anyhow::Error> {
@@ -380,11 +474,7 @@ impl Scanner {
             return Err(anyhow::anyhow!("invalid sign operator {:?}", literal));
         }
 
-        return Ok(Token {
-            r#type: TokenSign,
-            literal,
-            meta: None,
-        });
+        return Ok(Token::Sign(literal));
     }
 
     fn scan_join(&mut self) -> Result<Token, anyhow::Error> {
@@ -414,11 +504,7 @@ impl Scanner {
             return Err(anyhow::anyhow!("invalid join operator {:?}", literal));
         }
 
-        return Ok(Token {
-            r#type: TokenJoin,
-            literal,
-            meta: None,
-        });
+        return Ok(Token::Join(literal));
     }
 
     fn scan_group(&mut self) -> Result<Token, anyhow::Error> {
@@ -445,7 +531,9 @@ impl Scanner {
                 let t = self.scan_text(true); // with quotes to preserve the exact text start/end runes
                 match t {
                     Ok(token) => {
-                        buffer.extend(token.literal.chars());
+                        if let Token::Text(literal) = token {
+                            buffer.extend(literal.chars());
+                        }
                     }
                     Err(err) => {
                         // write the errored literal as it is
@@ -473,11 +561,7 @@ impl Scanner {
             ));
         }
 
-        return Ok(Token {
-            r#type: TokenGroup,
-            literal,
-            meta: None,
-        });
+        return Ok(Token::Group(literal));
     }
 
     fn scan_function_args(
@@ -630,10 +714,9 @@ impl Scanner {
             ));
         }
 
-        return Ok(Token {
-            r#type: TokenFunction,
-            literal: func_name,
-            meta: Some(Box::new(args)),
+        return Ok(Token::Function {
+            name: func_name,
+            args,
         });
     }
 }
@@ -687,19 +770,11 @@ fn is_identifier_combine_rune(ch: char) -> bool {
 }
 
 fn is_sign_operator(literal: &str) -> bool {
-    match literal {
-        SignEq | SignNeq | SignLt | SignLte | SignGt | SignGte | SignLike | SignNlike
-        | SignAnyEq | SignAnyNeq | SignAnyLike | SignAnyNlike | SignAnyLt | SignAnyLte
-        | SignAnyGt | SignAnyGte => true,
-        _ => false,
-    }
+    SignOp::from_str(literal).is_some()
 }
 
 fn is_join_operator(literal: &str) -> bool {
-    match literal {
-        JoinAnd | JoinOr => true,
-        _ => false,
-    }
+    JoinOp::from_str(literal).is_some()
 }
 
 fn is_valid_identifier(literal: &str) -> bool {
@@ -721,272 +796,345 @@ mod test {
 
     #[rstest]
     #[case("   ",vec![
-        (false,Token{meta:None,r#type:TokenWS,literal:"   ".into()}),
+        (false,Token::Whitespace("   ".into())),
     ])]
     #[case("test 123",vec![
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"test".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenNumber,literal:"123".into()}),
+        (false,Token::Identifier("test".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Number("123".into())),
     ])]
     // Identifiers
     #[case("test",vec![
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"test".into()}),
+        (false,Token::Identifier("test".into())),
     ])]
     #[case("@",vec![
-        (true,Token{meta:None,r#type:TokenIdentifier,literal:"@".into()}),
+        (true,Token::Identifier("@".into())),
     ])]
     #[case("test:",vec![
-        (true,Token{meta:None,r#type:TokenIdentifier,literal:"test:".into()}),
+        (true,Token::Identifier("test:".into())),
     ])]
     #[case("test.",vec![
-        (true,Token{meta:None,r#type:TokenIdentifier,literal:"test.".into()}),
+        (true,Token::Identifier("test.".into())),
     ])]
     #[case("@test.123:c",vec![
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"@test.123:c".into()}),
+        (false,Token::Identifier("@test.123:c".into())),
     ])]
     #[case("_test_a.123",vec![
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"_test_a.123".into()}),
+        (false,Token::Identifier("_test_a.123".into())),
     ])]
     #[case("#test.123:456",vec![
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"#test.123:456".into()}),
+        (false,Token::Identifier("#test.123:456".into())),
     ])]
     #[case(".test.123",vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:".".into()}),
+        (true,Token::None),
+        (false,Token::Identifier("test.123".into())),
     ])]
     #[case(":test.123",vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:":".into()}),
+        (true,Token::None),
+        (false,Token::Identifier("test.123".into())),
     ])]
     #[case("test#@",vec![
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"test".into()}),
+        (false,Token::Identifier("test".into())),
+        (true,Token::None),
+        (true,Token::None),
     ])]
     #[case("test'",vec![
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"test".into()}),
+        (false,Token::Identifier("test".into())),
+        (true,Token::Identifier("'".into())),
     ])]
     #[case("test\"d",vec![
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"test".into()}),
+        (false,Token::Identifier("test".into())),
+        (true,Token::None),
     ])]
     // Numbers
     #[case("123",vec![
-        (false,Token{meta:None,r#type:TokenNumber,literal:"123".into()}),
+        (false,Token::Number("123".into())),
     ])]
     #[case("-123",vec![
-        (false,Token{meta:None,r#type:TokenNumber,literal:"-123".into()}),
+        (false,Token::Number("-123".into())),
     ])]
     #[case("-123.456",vec![
-        (false,Token{meta:None,r#type:TokenNumber,literal:"-123.456".into()}),
+        (false,Token::Number("-123.456".into())),
     ])]
     #[case("123.456",vec![
-        (false,Token{meta:None,r#type:TokenNumber,literal:"123.456".into()}),
+        (false,Token::Number("123.456".into())),
     ])]
     #[case("12.34.56",vec![
-        (false,Token{meta:None,r#type:TokenNumber,literal:"12.34".into()}),
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:".".into()}),
-        (false,Token{meta:None,r#type:TokenNumber,literal:"56".into()}),
+        (false,Token::Number("12.34".into()),),
+        (true,Token::None),
+        (false,Token::Number("56".into())),
     ])]
     #[case(".123",vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:".".into()}),
-        (false,Token{meta:None,r#type:TokenNumber,literal:"123".into()}),
+        (true,Token::None),
+        (false,Token::Number("123".into()))
     ])]
     #[case("- 123",vec![
-        (true,Token{meta:None,r#type:TokenNumber,literal:"-".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenNumber,literal:"123".into()}),
+        (true,Token::Sign("-".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Number("123".into())),
     ])]
     #[case("12-3",vec![
-        (false,Token{meta:None,r#type:TokenNumber,literal:"12".into()}),
-        (false,Token{meta:None,r#type:TokenNumber,literal:"-3".into()}),
+        (false,Token::Number("12".into())),
+        (false,Token::Number("-3".into())),
     ])]
     #[case("123.abc",vec![
-        (true,Token{meta:None,r#type:TokenNumber,literal:"123.".into()}),
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"abc".into()}),
-    ])]
-    #[case("&&||",vec![
-        (true,Token{meta:None,r#type:TokenJoin,literal:"&&||".into()}),
+        (true,Token::None),
+        (false,Token::Identifier("abc".into()))
     ])]
     // Text
     #[case("\"\"",vec![
-        (false,Token{meta:None,r#type:TokenText,literal:"".into()}),
+        (false,Token::Text("".into())),
     ])]
     #[case(r"''",vec![
-        (false,Token{meta:None,r#type:TokenText,literal:"".into()}),
+        (false,Token::Text("".into())),
     ])]
     #[case(r"'test'",vec![
-        (false,Token{meta:None,r#type:TokenText,literal:"test".into()}),
+        (false,Token::Text("test".into())),
     ])]
     #[case(r"'te\'st'",vec![
-        (false,Token{meta:None,r#type:TokenText,literal:"te'st".into()}),
+        (false,Token::Text("te'st".into())),
     ])]
     #[case(r#"'te"st'"#,vec![
-        (false,Token{meta:None,r#type:TokenText,literal:"te\"st".into()}),
+        (false,Token::Text("te\"st".into())),
     ])]
     #[case(r#"'te"st'"#,vec![
-        (false,Token{meta:None,r#type:TokenText,literal:"te\"st".into()}),
+        (false,Token::Text("te\"st".into())),
     ])]
     #[case(r#""tes@#,;!@#%^'\"t""#,vec![
-        (false,Token{meta:None,r#type:TokenText,literal:r#"tes@#,;!@#%^'"t"#.into()}),
+        (false,Token::Text(r#"tes@#,;!@#%^'"t"#.into())),
     ])]
     #[case(r#"'tes@#,;!@#%^\'"t'"#,vec![
-        (false,Token{meta:None,r#type:TokenText,literal:r#"tes@#,;!@#%^'"t"#.into()}),
+        (false,Token::Text(r#"tes@#,;!@#%^'"t"#.into())),
     ])]
     #[case(r#""test"#,vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:r#""#.into()}),
+        (true,Token::Text("test".into())),
     ])]
     #[case(r#""test"#,vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:r#""#.into()}),
+        (true,Token::Text("test".into())),
     ])]
     #[case(r#"'АБЦ"#,vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:r#""#.into()}),
+        (true,Token::Text("АБЦ".into())),
     ])]
     // join types
     #[case(r#"&&||"#,vec![
-        (true,Token{meta:None,r#type:TokenJoin,literal:"&&||".into()}),
+        (true,Token::None),
     ])]
     #[case(r#"&& ||"#,vec![
-        (false,Token{meta:None,r#type:TokenJoin,literal:"&&".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenJoin,literal:"||".into()}),
+        (false,Token::Join("&&".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Join("||".into())),
     ])]
     #[case(r#"'||test&&'&&123"#,vec![
-        (false,Token{meta:None,r#type:TokenText,literal:"||test&&".into()}),
-        (false,Token{meta:None,r#type:TokenJoin,literal:"&&".into()}),
-        (false,Token{meta:None,r#type:TokenNumber,literal:"123".into()}),
+        (false,Token::Text("||test&&".into())),
+        (false,Token::Join("&&".into())),
+        (false,Token::Number("123".into())),
     ])]
-    // expression signs
+    // // expression signs
     #[case(r#"=!="#,vec![
-        (true,Token{meta:None,r#type:TokenSign,literal:"=!=".into()}),
-        ])]
-    #[case(r#"= != ~ !~ > >= < <= ?= ?!= ?~ ?!~ ?> ?>= ?< ?<="#,vec![
-        (false,Token{meta:None,r#type:TokenSign,literal:"=".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"!=".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"~".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"!~".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:">".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:">=".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"<".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"<=".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"?=".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"?!=".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"?~".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"?!~".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"?>".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"?>=".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"?<".into()}),
-        (false,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenSign,literal:"?<=".into()}),
+        (true,Token::None),
     ])]
-    // comments
+    #[case(r#"= != ~ !~ > >= < <= ?= ?!= ?~ ?!~ ?> ?>= ?< ?<="#,vec![
+        (false,Token::Sign("=".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("!=".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("~".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("!~".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign(">".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign(">=".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("<".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("<=".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("?=".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("?!=".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("?~".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("?!~".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("?>".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("?>=".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("?<".into())),
+        (false,Token::Whitespace(" ".into())),
+        (false,Token::Sign("?<=".into())),
+    ])]
+    // // comments
     #[case(r#"/ test"#,vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:"/".into()}),
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"test".into()}),
+        (true,Token::None),
+        (false,Token::Identifier("test".into())),
     ])]
     #[case(r#"/ / test"#,vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:"/".into()}),
-        (true,Token{meta:None,r#type:TokenWS,literal:" ".into()}),
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"test".into()}),
+        (true,Token::None),
+        (true,Token::None),
+        (false,Token::Identifier("test".into())),
     ])]
     #[case(r#"//"#,vec![
-        (false,Token{meta:None,r#type:TokenComment,literal:"".into()}),
+        (false,Token::Comment("".into())),
     ])]
     #[case(r#"//test"#,vec![
-        (false,Token{meta:None,r#type:TokenComment,literal:"test".into()}),
+        (false,Token::Comment("test".into())),
     ])]
     #[case(r#"// test"#,vec![
-        (false,Token{meta:None,r#type:TokenComment,literal:"test".into()}),
+        (false,Token::Comment(" test".into())),
     ])]
     #[case(r#"//   test1 //test2  "#,vec![
-        (false,Token{meta:None,r#type:TokenComment,literal:"test1 //test2".into()}),
+        (false,Token::Comment("   test1 //test2  ".into())),
     ])]
     #[case(r#"///test"#,vec![
-        (false,Token{meta:None,r#type:TokenComment,literal:"/test".into()}),
+        (false,Token::Comment("/test".into())),
     ])]
-    // function calls
+    // // function calls
     #[case(r#"test()"#,vec![
-        (false,Token{meta:None,r#type:TokenFunction,literal:"test".into()}),
+        (false,Token::Function{name:"test".into(),args:vec![]}),
     ])]
     #[case(r#"test(a, b"#,vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:"(".into()}),
+        (true,Token::None),
     ])]
     #[case(r#"@test:abc()"#,vec![
-        (false,Token{meta:None,r#type:TokenFunction,literal:"@test:abc".into()}),
+        (false,Token::Function{name:"@test:abc".into(),args:vec![]}),
     ])]
     #[case(r#"test(  a  )"#,vec![
-        (false,Token{meta:None,r#type:TokenFunction,literal:"test".into()}),
+        (
+            false,
+            Token::Function{
+            name:"test".into(),
+            args:vec![Token::Identifier("a".into())]
+        }),
     ])]
     #[case(r#"test(a, b)"#,vec![
-        (false,Token{meta:None,r#type:TokenFunction,literal:"test".into()}),
+        (false,Token::Function{ 
+            name:"test".into(),
+            args:vec![
+                Token::Identifier("a".into()),
+                Token::Identifier("b".into())
+            ] 
+        }),
     ])]
     #[case(r#"test(a, b,  )"#,vec![
-        (false,Token{meta:None,r#type:TokenFunction,literal:"test".into()}),
+        (false,Token::Function {
+            name:"test".into(),
+            args:vec![
+                Token::Identifier("a".into()),
+                Token::Identifier("b".into())
+            ]
+        }),
     ])]
     #[case(r#"test(a,,)"#,vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:"(".into()}),
+        (true,Token::None),
+        (true,Token::None),
     ])]
     #[case(r#"test(a,,,b)"#,vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:"(".into()}),
+        (true,Token::None),
+        (true,Token::None),
     ])]
     #[case(r#"test(   @test.a.b:test  , 123, "ab)c", 'd,ce')"#,vec![
-        (false,Token{meta:None,r#type:TokenFunction,literal:"test".into()}),
+        (false,Token::Function{
+            name:"test".into(),
+            args:vec![
+                Token::Identifier("@test.a.b:test".into()),
+                Token::Number("123".into()),
+                Token::Text("ab)c".into()),
+                Token::Text("d,ce".into()),
+            ]
+        }),
     ])]
     #[case(r#"test(a //test)"#,vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:"(".into()}),
+        (true,Token::None),
     ])]
     #[case("test(a //test\n)",vec![
-        (false,Token{meta:None,r#type:TokenFunction,literal:"test".into()}),
+        (false,Token::Function {
+            name:"test".into(),
+            args:vec![Token::Identifier("a".into())]
+        }),
     ])]
     #[case("test(a, //test\n, b)",vec![
-        (true,Token{meta:None,r#type:TokenUnexpected,literal:"(".into()}),
+        (true,Token::None),
     ])]
     #[case("test(a, //test\n b)",vec![
-        (false,Token{meta:None,r#type:TokenFunction,literal:"test".into()}),
+        (false,Token::Function{
+            name:"test".into(),
+            args:vec![
+                Token::Identifier("a".into()),
+                Token::Identifier("b".into()),
+            ]
+        }),
     ])]
     #[case(r#"test(a, test(test(b), c), d)"#,vec![
-        (false,Token{meta:None,r#type:TokenFunction,literal:"test".into()}),
+        (false,Token::Function {
+            name:"test".into(),
+            args:vec![
+                Token::Identifier("a".into()),
+                Token::Function {
+                    name:"test".into(),
+                    args:vec![
+                        Token::Function {
+                            name:"test".into(),
+                            args:vec![
+                                Token::Identifier("b".into())
+                            ]
+                        },
+                        Token::Identifier("c".into())
+                    ]
+                },
+                Token::Identifier("d".into())
+            ]
+        }),
     ])]
     // max funcs depth
     #[case(r#"a(b(c(1)))"#,vec![
-        (false,Token{meta:None,r#type:TokenFunction,literal:"a".into()}),
+        (false,Token::Function {
+            name:"a".into(),
+            args:vec![
+                Token::Function {
+                    name:"b".into(),
+                    args:vec![
+                        Token::Function {
+                            name:"c".into(),
+                            args:vec![
+                                Token::Number("1".into())
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }),
     ])]
     #[case(r#"a(b(c(d(1))))"#,vec![
-        (true,Token{meta:None,r#type:TokenFunction,literal:"a".into()}),
+        (true,Token::None),
     ])]
     // groups
     #[case(r#"a)"#,vec![
-        (false,Token{meta:None,r#type:TokenIdentifier,literal:"a".into()}),
+        (false,Token::Identifier("a".into())),
+        (true,Token::None),
     ])]
     #[case(r#"(a b c"#,vec![
-        (true,Token{meta:None,r#type:TokenGroup,literal:"a b c".into()}),
+        (true,Token::Group("a b c".into())),
     ])]
     #[case(r#"(a b c)"#,vec![
-        (false,Token{meta:None,r#type:TokenGroup,literal:"a b c".into()}),
+        (false,Token::Group("a b c".into())),
     ])]
     #[case(r#"((a b c))"#,vec![
-        (false,Token{meta:None,r#type:TokenGroup,literal:"(a b c)".into()}),
+        (false,Token::Group("(a b c)".into())),
     ])]
     #[case(r#"((a )b c))"#,vec![
-        (false,Token{meta:None,r#type:TokenGroup,literal:"(a )b c".into()}),
+        (false,Token::Group("(a )b c".into())),
     ])]
     #[case(r#"("ab)("c)"#,vec![
-        (false,Token{meta:None,r#type:TokenGroup,literal:r#""ab)("c"#.into()}),
+        (false,Token::Group("\"ab)(\"c".into())),
     ])]
     #[case(r#"("ab)(c)"#,vec![
-        (true,Token{meta:None,r#type:TokenGroup,literal:r#""ab)(c"#.into()}),
+        (true,Token::Group("\"ab)(c".into())),
     ])]
     #[case(r#"( func(1, 2, 3, func(4)) a b c )"#,vec![
-        (false,Token{meta:None,r#type:TokenGroup,literal:" func(1, 2, 3, func(4)) a b c ".into()}),
+        (false,Token::Group(" func(1, 2, 3, func(4)) a b c ".into())),
     ])]
     #[rstest]
     pub fn test_scanner(#[case] text: &str, #[case] expects: Vec<(bool, Token)>) {
@@ -996,8 +1144,7 @@ mod test {
             assert_eq!(token.is_err(), expect.0, "case {}", text);
             if !token.is_err() {
                 let token = token.unwrap();
-                assert_eq!(token.r#type, expect.1.r#type, "case {}", text);
-                assert_eq!(token.literal, expect.1.literal, "case {}", text);
+                assert_eq!(token, expect.1, "case {}", text);
             }
         }
     }
