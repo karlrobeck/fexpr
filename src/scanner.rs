@@ -1,6 +1,6 @@
 const EOF: char = '\0';
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq,Clone,Copy)]
 pub enum JoinOp {
     And,
     Or,
@@ -29,7 +29,7 @@ impl std::fmt::Display for JoinOp {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default,Clone)]
 pub enum SignOp {
     #[default]
     None,
