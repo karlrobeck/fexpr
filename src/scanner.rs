@@ -1,3 +1,5 @@
+use crate::error;
+
 const EOF: char = '\0';
 
 #[derive(Debug, PartialEq,Clone,Copy)]
@@ -196,7 +198,7 @@ impl Scanner {
         return character;
     }
 
-    pub fn scan(&mut self) -> Result<Token, anyhow::Error> {
+    pub fn scan(&mut self) -> Result<Token, error::FexprError> {
         let character = self.read();
 
         if character == EOF {
@@ -243,12 +245,12 @@ impl Scanner {
             return self.scan_comment();
         }
 
-        return Err(anyhow::anyhow!("unexpected character {:?}", character));
+        return Err(error::FexprError::TokenUnexpected(character.to_string()));
     }
 }
 
 impl Scanner {
-    fn scan_whitespace(&mut self) -> Result<Token, anyhow::Error> {
+    fn scan_whitespace(&mut self) -> Result<Token, error::FexprError> {
         let mut buffer = vec![];
 
         loop {
@@ -270,7 +272,7 @@ impl Scanner {
         return Ok(Token::Whitespace(buffer.into_iter().collect()));
     }
 
-    fn scan_number(&mut self) -> Result<Token, anyhow::Error> {
+    fn scan_number(&mut self) -> Result<Token, error::FexprError> {
         let mut buffer = vec![];
 
         let mut had_dot = false;
@@ -306,13 +308,13 @@ impl Scanner {
             || literal.chars().nth(0) == Some('.')
             || literal.chars().nth(total - 1) == Some('.')
         {
-            return Err(anyhow::anyhow!("invalid number {:?}", literal));
+            return Err(error::FexprError::InvalidNumber(literal.to_string()));
         }
 
         return Ok(Token::Number(literal));
     }
 
-    fn scan_text(&mut self, preserve_quotes: bool) -> Result<Token, anyhow::Error> {
+    fn scan_text(&mut self, preserve_quotes: bool) -> Result<Token, error::FexprError> {
         let mut buffer = vec![];
 
         // read the first rune to determine the quotes type
@@ -345,7 +347,7 @@ impl Scanner {
         let mut literal: String = buffer.into_iter().collect();
 
         if !has_matching_quotes {
-            return Err(anyhow::anyhow!("invalid quoted text {:?}", literal));
+            return Err(error::FexprError::InvalidQuoteText(literal.to_string()));
         }
 
         if !preserve_quotes {
@@ -365,12 +367,12 @@ impl Scanner {
         return Ok(Token::Text(literal));
     }
 
-    fn scan_comment(&mut self) -> Result<Token, anyhow::Error> {
+    fn scan_comment(&mut self) -> Result<Token, error::FexprError> {
         let mut buffer = vec![];
 
         // Read the first 2 characters without writing them to the buffer.
         if !is_comment_start_rune(self.read()) || !is_comment_start_rune(self.read()) {
-            return Err(anyhow::anyhow!("invalid comment"));
+            return Err(error::FexprError::InvalidComment("invalid comment".to_string()));
         }
 
         // Read every subsequent comment text rune into the buffer.
@@ -390,7 +392,7 @@ impl Scanner {
         return Ok(Token::Comment(literal));
     }
 
-    fn scan_identifier(&mut self, func_depth: i16) -> Result<Token, anyhow::Error> {
+    fn scan_identifier(&mut self, func_depth: i16) -> Result<Token, error::FexprError> {
         let mut buffer = vec![];
 
         // read the first rune in case it is a special start identifier character
@@ -410,13 +412,10 @@ impl Scanner {
                 let literal: String = buffer.into_iter().collect();
                 let func_name = literal.clone();
                 if func_depth <= 0 {
-                    return Err(anyhow::anyhow!(
-                        "max nested function arguments reached (max: {})",
-                        self.max_function_depth
-                    ));
+                    return Err(error::FexprError::MaxFunctionDepthExceeded(self.max_function_depth));
                 }
                 if !is_valid_identifier(&func_name) {
-                    return Err(anyhow::anyhow!("invalid function name {:?}", func_name));
+                    return Err(error::FexprError::InvalidFunctionName(func_name));
                 }
 
                 self.unread();
@@ -441,13 +440,13 @@ impl Scanner {
         let literal: String = buffer.into_iter().collect();
 
         if !is_valid_identifier(&literal) {
-            return Err(anyhow::anyhow!("invalid identifier {:?}", literal));
+            return Err(error::FexprError::InvalidIdentifier(literal));
         }
 
         return Ok(Token::Identifier(literal));
     }
 
-    fn scan_sign(&mut self) -> Result<Token, anyhow::Error> {
+    fn scan_sign(&mut self) -> Result<Token, error::FexprError> {
         let mut buffer = vec![];
 
         // Read every subsequent sign rune into the buffer.
@@ -471,13 +470,13 @@ impl Scanner {
         let literal: String = buffer.into_iter().collect();
 
         if !is_sign_operator(&literal) {
-            return Err(anyhow::anyhow!("invalid sign operator {:?}", literal));
+            return Err(error::FexprError::InvalidSignOperator(literal));
         }
 
         return Ok(Token::Sign(literal));
     }
 
-    fn scan_join(&mut self) -> Result<Token, anyhow::Error> {
+    fn scan_join(&mut self) -> Result<Token, error::FexprError> {
         let mut buffer = vec![];
 
         // Read every subsequent join operator rune into the buffer.
@@ -501,13 +500,13 @@ impl Scanner {
         let literal: String = buffer.into_iter().collect();
 
         if !is_join_operator(&literal) {
-            return Err(anyhow::anyhow!("invalid join operator {:?}", literal));
+            return Err(error::FexprError::InvalidJoinOperator(literal));
         }
 
         return Ok(Token::Join(literal));
     }
 
-    fn scan_group(&mut self) -> Result<Token, anyhow::Error> {
+    fn scan_group(&mut self) -> Result<Token, error::FexprError> {
         let mut buffer = vec![];
 
         // read the first group bracket without writing it to the buffer
@@ -535,11 +534,8 @@ impl Scanner {
                             buffer.extend(literal.chars());
                         }
                     }
-                    Err(err) => {
-                        // write the errored literal as it is
-                        let literal: String = buffer.into_iter().collect();
-                        return Err(anyhow::anyhow!("{}, {}", literal, err));
-                    }
+                    Err(err) => return Err(err)
+                    
                 }
             } else if character == ')' {
                 open_groups -= 1;
@@ -555,10 +551,7 @@ impl Scanner {
         let literal: String = buffer.into_iter().collect();
 
         if !is_group_start_rune(first_character) || open_groups > 0 {
-            return Err(anyhow::anyhow!(
-                "invalid formatted group - missing {} closing bracket(s)",
-                open_groups
-            ));
+            return Err(error::FexprError::UnterminatedGroup);
         }
 
         return Ok(Token::Group(literal));
@@ -568,7 +561,7 @@ impl Scanner {
         &mut self,
         func_name: String,
         func_depth: i16,
-    ) -> Result<Token, anyhow::Error> {
+    ) -> Result<Token, error::FexprError> {
         let mut args: Vec<Token> = vec![];
 
         let mut expect_comma = false;
@@ -577,10 +570,7 @@ impl Scanner {
 
         let ch = self.read();
         if ch != '(' {
-            return Err(anyhow::anyhow!(
-                "invalid or incomplete function call {:?}",
-                func_name
-            ));
+            return Err(error::FexprError::InvalidFunctionArguments);
         }
 
         // Read every subsequent rune until ')' or EOF has been reached.
@@ -602,11 +592,7 @@ impl Scanner {
                 match t {
                     Ok(_) => {}
                     Err(err) => {
-                        return Err(anyhow::anyhow!(
-                            "failed to scan whitespaces in function {:?}: {:?}",
-                            func_name,
-                            err
-                        ));
+                        return Err(err);
                     }
                 }
                 continue;
@@ -619,11 +605,7 @@ impl Scanner {
                 match t {
                     Ok(_) => {}
                     Err(err) => {
-                        return Err(anyhow::anyhow!(
-                            "failed to scan comment in function {:?}: {:?}",
-                            func_name,
-                            err
-                        ));
+                        return Err(err);
                     }
                 }
                 continue;
@@ -632,15 +614,13 @@ impl Scanner {
             is_comma = ch == ',';
 
             if expect_comma && !is_comma {
-                return Err(anyhow::anyhow!(
-                    "expected comma after the last argument in function {:?}",
+                return Err(error::FexprError::ExpectedComma(
                     func_name
                 ));
             }
 
             if !expect_comma && is_comma {
-                return Err(anyhow::anyhow!(
-                    "unexpected comma in function {:?}",
+                return Err(error::FexprError::UnexpectedComma(
                     func_name
                 ));
             }
@@ -660,11 +640,7 @@ impl Scanner {
                         expect_comma = true;
                     }
                     Err(err) => {
-                        return Err(anyhow::anyhow!(
-                            "invalid identifier argument in function {:?}: {:?}",
-                            func_name,
-                            err
-                        ));
+                        return Err(err);
                     }
                 }
             } else if is_number_start_rune(ch) {
@@ -676,11 +652,7 @@ impl Scanner {
                         expect_comma = true;
                     }
                     Err(err) => {
-                        return Err(anyhow::anyhow!(
-                            "invalid number argument in function {:?}: {:?}",
-                            func_name,
-                            err
-                        ));
+                        return Err(err);
                     }
                 }
             } else if is_text_start_rune(ch) {
@@ -692,26 +664,16 @@ impl Scanner {
                         expect_comma = true;
                     }
                     Err(err) => {
-                        return Err(anyhow::anyhow!(
-                            "invalid text argument in function {:?}: {:?}",
-                            func_name,
-                            err
-                        ));
+                        return Err(err);
                     }
                 }
             } else {
-                return Err(anyhow::anyhow!(
-                    "unsupported argument character in function {:?}",
-                    func_name
-                ));
+                return Err(error::FexprError::InvalidFunctionArguments);
             }
         }
 
         if !is_closed {
-            return Err(anyhow::anyhow!(
-                "invalid or incomplete function {:?} (expected ')')",
-                func_name
-            ));
+            return Err(error::FexprError::InvalidFunctionArguments);
         }
 
         return Ok(Token::Function {
