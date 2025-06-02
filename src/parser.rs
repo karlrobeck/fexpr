@@ -1,4 +1,7 @@
-use crate::scanner::{JoinOp, Scanner, SignOp, Token};
+use crate::{
+    error,
+    scanner::{JoinOp, Scanner, SignOp, Token},
+};
 
 #[derive(Debug, Default, Clone)]
 pub struct Expr {
@@ -93,7 +96,7 @@ enum Step {
     Join,
 }
 
-pub fn parse(text: &str) -> Result<ExprGroups, anyhow::Error> {
+pub fn parse(text: &str) -> Result<ExprGroups, error::FexprError> {
     let mut result = ExprGroups::new();
     let mut scanner = Scanner::new(text.as_bytes().into(), 3);
     let mut step = Step::BeforeSign;
@@ -132,11 +135,10 @@ pub fn parse(text: &str) -> Result<ExprGroups, anyhow::Error> {
                     && !matches!(token, Token::Text(_))
                     && !matches!(token, Token::Number(_))
                 {
-                    return Err(anyhow::anyhow!(format!(
-                        "Expected left operand (identifier, text or number), got {} ({})",
-                        token.literal(),
-                        token.kind()
-                    )));
+                    return Err(error::FexprError::ExpectedLeftOperand(
+                        token.literal().to_string(),
+                        token.kind().to_string(),
+                    ));
                 }
 
                 expr = Expr {
@@ -148,21 +150,19 @@ pub fn parse(text: &str) -> Result<ExprGroups, anyhow::Error> {
             }
             Step::Sign => {
                 if !matches!(token, Token::Sign(_)) {
-                    return Err(anyhow::anyhow!(format!(
-                        "Expected a sign operator, got {} ({})",
-                        token.literal(),
-                        token.kind()
-                    )));
+                    return Err(error::FexprError::ExpectedSignOperator(
+                        token.literal().to_string(),
+                        token.kind().to_string(),
+                    ));
                 }
 
                 expr.op = match SignOp::from_str(token.literal()) {
                     Some(op) => op,
                     None => {
-                        return Err(anyhow::anyhow!(format!(
-                            "Expected a sign operator, got {} ({})",
-                            token.literal(),
-                            token.kind()
-                        )));
+                        return Err(error::FexprError::ExpectedSignOperator(
+                            token.literal().to_string(),
+                            token.kind().to_string(),
+                        ));
                     }
                 };
 
@@ -173,11 +173,10 @@ pub fn parse(text: &str) -> Result<ExprGroups, anyhow::Error> {
                     && !matches!(token, Token::Text(_))
                     && !matches!(token, Token::Number(_))
                 {
-                    return Err(anyhow::anyhow!(format!(
-                        "Expected right operand (identifier, text or number), got {} ({})",
-                        token.literal(),
-                        token.kind(),
-                    )));
+                    return Err(error::FexprError::ExpectedRightOperand(
+                        token.literal().to_string(),
+                        token.kind().to_string(),
+                    ));
                 }
 
                 expr.right = token;
@@ -190,21 +189,19 @@ pub fn parse(text: &str) -> Result<ExprGroups, anyhow::Error> {
             }
             Step::Join => {
                 if !matches!(token, Token::Join(_)) {
-                    return Err(anyhow::anyhow!(format!(
-                        "Expected && or ||, got {} ({})",
-                        token.literal(),
-                        token.kind()
-                    )));
+                    return Err(error::FexprError::ExpectedJoinOperator(
+                        token.literal().to_string(),
+                        token.kind().to_string(),
+                    ));
                 }
 
                 join = match JoinOp::from_str(token.literal()) {
                     Some(join) => join,
                     None => {
-                        return Err(anyhow::anyhow!(format!(
-                            "Expected && or ||, got {} ({})",
-                            token.literal(),
-                            token.kind()
-                        )));
+                        return Err(error::FexprError::ExpectedJoinOperator(
+                            token.literal().to_string(),
+                            token.kind().to_string(),
+                        ));
                     }
                 };
 
@@ -215,12 +212,10 @@ pub fn parse(text: &str) -> Result<ExprGroups, anyhow::Error> {
 
     if step != Step::Join {
         if result.len() == 0 && expr.is_zero() {
-            return Err(anyhow::anyhow!("Empty filter expression".to_owned()));
+            return Err(error::FexprError::EmptyFilterExpression);
         }
 
-        return Err(anyhow::anyhow!(
-            "Invalid or incomplete filter expression".to_owned(),
-        ));
+        return Err(error::FexprError::InvalidOrIncompleteFilterExpression);
     }
 
     Ok(result)
